@@ -28,21 +28,69 @@ import os, sys,arcpy,urllib2
 
 #Define input parameters
 InputFeatureClass=arcpy.GetParameterAsText(1)
-OutputImagerDirectory=arcpy.GetParameterAsText(2)
+OutputImageDirectory=arcpy.GetParameterAsText(2)
 UniqueFieldForImageNames=arcpy.GetParameterAsText(3)
 GoogleAPIKey=arcpy.GetParameter(4)#String
-AsssociateAttachmentsBool=arcpy.GetParameter(5) #Boolean
+AssociateAttachmentsBool=arcpy.GetParameter(5) #Boolean
 # Worker Function Definitions
+def getFIndex(field_names, field_name):
+    try:  # Assumes string will match if all the field names are made lower case.
+        return [str(i).lower() for i in field_names].index(str(field_name).lower())
+        # Make iter items lower case to get right time field index.
+    except:
+        print("Couldn't retrieve index for {0}, check arguments.".format(str(field_name)))
+        return None
+
+def arcPrint(string, progressor_Bool=False):
+    # This function is used to simplify using arcpy reporting for tool creation,if progressor bool is true it will
+    # create a tool label.
+    try:
+        if progressor_Bool:
+            arcpy.SetProgressorLabel(string)
+            arcpy.AddMessage(string)
+            print(string)
+        else:
+            arcpy.AddMessage(string)
+            print(string)
+    except arcpy.ExecuteError:
+        arcpy.GetMessages(2)
+    except:
+        arcpy.AddMessage("Could not create message, bad arguments.")
+
+
+def FieldExist(featureclass, fieldname):
+    # Check if a field in a feature class field exists and return true it does, false if not.
+    fieldList = arcpy.ListFields(featureclass, fieldname)
+    fieldCount = len(fieldList)
+    if (fieldCount >= 1):  # If there is one or more of this field return true
+        return True
+    else:
+        return False
+
+
+# CR: add comment describing functionality and parameter purposes (apply to all instances)
+def AddNewField(in_table, field_name, field_type, field_precision="#", field_scale="#", field_length="#",
+                field_alias="#", field_is_nullable="#", field_is_required="#", field_domain="#"):
+    # Add a new field if it currently does not exist...add field alone is slower than checking first.
+    if FieldExist(in_table, field_name):
+        print(field_name + " Exists")
+        arcpy.AddMessage(field_name + " Exists")
+    else:
+        print("Adding " + field_name)
+        arcpy.AddMessage("Adding " + field_name)
+        arcpy.AddField_management(in_table, field_name, field_type, field_precision, field_scale,
+                                  field_length,
+                                  field_alias,
+                                  field_is_nullable, field_is_required, field_domain)
 #PUT API FUNCTION HERE
 
 # Function Definitions
-def do_analysis(*argv):
+def do_analysis(inFC,outDir,uniqueNameField,googleMapsAPIKey,attachmentBool=True):
     """This is the main function call for the StreetViewGISRetrieval Tool. It interacts with the Google Maps API and
     the ArcGIS Arcpy library to fill a directory with street view images that correspond to an input feature's
     inside centroids."""
-    Param1=argv[1]
     try:
-        #TODO: Add analysis here
+
         pass
     except arcpy.ExecuteError:
         print arcpy.GetMessages(2)
@@ -54,6 +102,6 @@ def do_analysis(*argv):
 # This test allows the script to be used from the operating
 # system command prompt (stand-alone), in a Python IDE,
 # as a geoprocessing script tool, or as a module imported in
-# another script
+# another script-Only calls on main function call.
 if __name__ == '__main__':
-    do_analysis()
+    do_analysis(InputFeatureClass,OutputImageDirectory,UniqueFieldForImageNames,GoogleAPIKey,AssociateAttachmentsBool)
