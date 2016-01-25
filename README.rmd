@@ -1,0 +1,1 @@
+This GIS tool pulls images from Google StreetView and associates them with road segments in an input featureclass.
