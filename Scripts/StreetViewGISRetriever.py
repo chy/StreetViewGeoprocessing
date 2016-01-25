@@ -27,10 +27,19 @@
 import os, sys,arcpy,urllib2
 
 #Define input parameters
+InputFeatureClass=arcpy.GetParameterAsText(1)
+OutputImagerDirectory=arcpy.GetParameterAsText(2)
+UniqueFieldForImageNames=arcpy.GetParameterAsText(3)
+GoogleAPIKey=arcpy.GetParameter(4)#String
+AsssociateAttachmentsBool=arcpy.GetParameter(5) #Boolean
+# Worker Function Definitions
+#PUT API FUNCTION HERE
 
 # Function Definitions
 def do_analysis(*argv):
-    """TODO: Add documentation about this function here"""
+    """This is the main function call for the StreetViewGISRetrieval Tool. It interacts with the Google Maps API and
+    the ArcGIS Arcpy library to fill a directory with street view images that correspond to an input feature's
+    inside centroids."""
     Param1=argv[1]
     try:
         #TODO: Add analysis here
