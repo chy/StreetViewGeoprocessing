@@ -3,7 +3,7 @@
 # Purpose: Take as input a feature class and use the features inside centroids to retrieve street view images from the
 # coordinates closest to them and load them into a directory and then optionally associate them with the reference
 # feature class.
-# Current Owner: David Wasserman
+# Current Owner: David Wasserman & chy
 # Last Modified: 01/01/2016
 # Copyright:   (c) CoAdapt
 # ArcGIS Version:   10.3
@@ -24,7 +24,7 @@
 # limitations under the License.
 # --------------------------------
 # Import Modules
-import os, sys,arcpy,urllib2
+import os, sys,arcpy,urllib2,cStringIO
 
 #Define input parameters
 InputFeatureClass=arcpy.GetParameterAsText(1)
@@ -90,7 +90,26 @@ def do_analysis(inFC,outDir,uniqueNameField,googleMapsAPIKey,attachmentBool=True
     the ArcGIS Arcpy library to fill a directory with street view images that correspond to an input feature's
     inside centroids."""
     try:
+        arcpy.env.overwriteOutput = True
+        workspace = os.path.dirname(inFC)
+        FileName = os.path.basename(inFC)
+        # tempOutName = arcpy.ValidateTableName("TempBlockFC_1", workspace)
+        # tempOutFeature = os.path.join(workspace, tempOutName)
+        # Add New Fields
+        arcPrint("Adding new field for Image paths, will change if images location change.", True)
+        featurePathField = arcpy.ValidateFieldName("UniqueFeatPaths",workspace)
+        AddNewField(inFC,featurePathField,"TEXT")
+        arcPrint("Gathering feature information.", True)
+        # Get feature description and spatial reference information for tool use
+        desc = arcpy.Describe(inFC)
+        spatialRef = desc.spatialReference
+        shpType = desc.shapeType
+        srName = spatialRef.name
+        with arcpy.da.UpdateCursor(inFC,["SHAPE@","SHAPE@LENGTH",featurePathField]) as cursor:
+            for row in cursor:
+                print row
 
+        arcpy.FeatureToPoint_management(inFC,)
         pass
     except arcpy.ExecuteError:
         print arcpy.GetMessages(2)
