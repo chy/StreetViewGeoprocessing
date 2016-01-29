@@ -1,4 +1,4 @@
-import urllib, cStringIO, google_api_keys
+import urllib, cStringIO
 #from PIL import Image
 # get arial image from google maps api at coordinates
 
