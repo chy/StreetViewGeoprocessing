@@ -24,18 +24,18 @@
 # limitations under the License.
 # --------------------------------
 # Import Modules
-import os, arcpy, urllib, cStringIO,math
+import os, arcpy, urllib, cStringIO, math
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
 
 # Define input parameters
-InputFeatureClass = r"C:\Users\anthr_000\Documents\My Education\GIS and Modeling\GIS Programming-ArcPy\Scripts\StreetViewGeoprocessing\ToolData.gdb\hillsborough_Sample_RdsData"#arcpy.GetParameterAsText(1)
-OutputImageDirectory =r""#arcpy.GetParameterAsText(2)
-UniqueFieldForImageNames = r"ExplodeID"#arcpy.GetParameterAsText(3)
-GoogleAPIKey = r""#arcpy.GetParameter(4)  # String
-OptHeadingField=r""#arcpy.GetParameterAsText(5)
-AssociateAttachmentsBool = r""#arcpy.GetParameter(6)  # Boolean
+InputFeatureClass = r"C:\Users\anthr_000\Documents\My Education\GIS and Modeling\GIS Programming-ArcPy\Scripts\StreetViewGeoprocessing\ToolData.gdb\hillsborough_Sample_RdsData"  # arcpy.GetParameterAsText(1)
+OutputImageDirectory = r"C:\Users\anthr_000\Documents\My Education\GIS and Modeling\GIS Programming-ArcPy\Scripts\StreetViewGeoprocessing\SVImages"  # arcpy.GetParameterAsText(2)
+UniqueFieldForImageNames = r"ExplodeID"  # arcpy.GetParameterAsText(3)
+GoogleAPIKey = r""  # arcpy.GetParameter(4)  # String
+OptHeadingField = r""  # arcpy.GetParameterAsText(5)
+AssociateAttachmentsBool = True  # arcpy.GetParameter(6)  # Boolean
 
 
 # Worker Function Definitions
@@ -72,18 +72,28 @@ def fetch_streetview_image(coordinate_pair, heading, api_key="", size_tuple=(640
         return None
 
 
-def fetch_streetview_image_and_save(coordinate_pair, heading, path, api_key="", size_tuple=(640, 640), fov=90, pitch=10):
+def fetch_streetview_image_and_save(coordinate_pair, heading, path, api_key="", size_tuple=(640, 640), fov=90,
+                                    pitch=10):
     """Saves the fetched file if passed a path to save to."""
-    image_string = fetch_streetview_image(coordinate_pair, heading, api_key, size_tuple, fov, pitch)
+    # image_string = fetch_streetview_image(coordinate_pair, heading, api_key, size_tuple, fov, pitch)
+    # try:
+    #     file = open(os.path.abspath(path), "w")
+    #     file.write(image_string)
+    #     file.close()
+    #     pass
+    # except IOError as error:
+    #     debug("IO error when writing image to", file)
+    #     return None
+    url = """https://maps.googleapis.com/maps/api/streetview?size={0}x{1}&location={2},{3}&fov={4}&heading={5}&pitch={6}&key={7}""".format(
+            size_tuple[0], size_tuple[1], coordinate_pair[0], coordinate_pair[1], fov, heading, pitch, api_key)
+    debug("Fetching image from:", url)
     try:
-        file = open(os.path.abspath(path), "w")
+        urllib.urlretrieve(url, os.path.abspath(path))
+        return True
+    except:
+        debug("Failed to fetch StreetView image for coordinates:", coordinate_pair)
+        return False
 
-        file.write(image_string)
-        file.close()
-        pass
-    except IOError as error:
-        debug("IO error when writing image to", file)
-        return None
 
 def getFIndex(field_names, field_name):
     try:  # Assumes string will match if all the field names are made lower case.
@@ -136,28 +146,31 @@ def AddNewField(in_table, field_name, field_type, field_precision="#", field_sca
                                   field_alias,
                                   field_is_nullable, field_is_required, field_domain)
 
-def getAngleBetweenPoints(point1,point2,headingMode=True,invertDegrees=False):
-    point1CentX=point1.centroid.X
-    point2CentX=point2.centroid.X
-    point1CentY=point1.centroid.Y
-    point2CentY=point2.centroid.Y
+
+def getAngleBetweenPoints(point1, point2, headingMode=True, invertDegrees=False):
+    point1CentX = point1.centroid.X
+    point2CentX = point2.centroid.X
+    point1CentY = point1.centroid.Y
+    point2CentY = point2.centroid.Y
     print(point1CentX)
-    diffX=point2CentX-point1CentX
-    diffY=point2CentY-point1CentY
-    if diffX==0 and diffX and diffY:
+    diffX = point2CentX - point1CentX
+    diffY = point2CentY - point1CentY
+    if diffX == 0 and diffX and diffY:
         print("No heading could be achieved because value was 0.")
         return 0
-    invertWPi=0
+    invertWPi = 0
     if invertDegrees:
-        invertWPi=math.pi
+        invertWPi = math.pi
     if headingMode:
-        return math.degrees(math.atan2(diffX,diffY)-invertWPi)%360
+        return math.degrees(math.atan2(diffX, diffY) - invertWPi) % 360
     else:
-        return math.degrees(math.atan2(diffX,diffY)-invertWPi)
+        return math.degrees(math.atan2(diffX, diffY) - invertWPi)
+
+
 # PUT API FUNCTION HERE
 
 # Function Definitions
-def do_analysis(inFC, outDir, uniqueNameField, googleMapsAPIKey, heading=0,attachmentBool=True):
+def do_analysis(inFC, outDir, uniqueNameField, googleMapsAPIKey, headingField=None, attachmentBool=True):
     """This is the main function call for the StreetViewGISRetrieval Tool. It interacts with the Google Maps API and
     the ArcGIS Arcpy library to fill a directory with street view images that correspond to an input feature's
     inside centroids."""
@@ -178,35 +191,78 @@ def do_analysis(inFC, outDir, uniqueNameField, googleMapsAPIKey, heading=0,attac
         shpType = desc.shapeType
         srName = spatialRef.name
         arcPrint(
-                "The shape type is {0}, and the current spatial reference is: {1}".format(str(shpType), str(srName)),
+                "The shape type is {0}, and the current spatial reference is: {1}.".format(str(shpType), str(srName)),
                 True)
-        WGS_1984_MajAux=arcpy.SpatialReference(104199) #http://support.esri.com/cn/knowledgebase/techarticles/detail/34749
+        WGS_1984_MajAux = arcpy.SpatialReference(
+                104199)  # http://support.esri.com/cn/knowledgebase/techarticles/detail/34749
         fNames = ["SHAPE@", uniqueNameField, featurePathField]
-        if heading and FieldExist(inFC,heading):
-            fNames.append(heading)
-
+        if headingField and FieldExist(inFC, headingField):
+            fNames.append(str(headingField))
+        if not os.path.exists(outDir):
+            os.makedirs(outDir)
+            arcPrint("Specified directory did not exist, so a new one was created.",True)
+        counter = 1
+        arcPrint("Establishing an update cursor for simultaneous image collection and feature class correspondence.",
+                 True)
         if shpType == "Polyline":
-            with arcpy.da.UpdateCursor(inFC, fNames,spatial_reference=WGS_1984_MajAux) as cursor:
+            with arcpy.da.UpdateCursor(inFC, fNames, spatial_reference=WGS_1984_MajAux) as cursor:
+                arcPrint(
+                    "Feature class is a polyline, using midpoint along line to determine location and heading to pass to API.",
+                    True)
                 for row in cursor:
-                    print("Point 1 and 2")
-                    midPoint=row[getFIndex(fNames,"SHAPE@")].positionAlongLine(.5,True)
-                    beyondMidPoint= row[getFIndex(fNames,"SHAPE@")].positionAlongLine(.500001,True)
-                    headingParam= getAngleBetweenPoints(midPoint,beyondMidPoint,True)
-                    midpointProjected=midPoint.projectAs(WGS_1984_MajAux)
-                    fileOutPath=os.path.join(outDir,"{0}.{1}".format(str(uniqueNameField),"jpg"))
-                    streetViewString=fetch_streetview_image_and_save((midpointProjected.centroid.Y,midpointProjected.centroid.X),headingParam,fileOutPath)
-
-
+                    try:
+                        arcPrint("!")
+                        midPoint = row[getFIndex(fNames, "SHAPE@")].positionAlongLine(.5, True)
+                        beyondMidPoint = row[getFIndex(fNames, "SHAPE@")].positionAlongLine(.500001, True)
+                        arcPrint("!")
+                        headingParam = getAngleBetweenPoints(midPoint, beyondMidPoint, True)
+                        arcPrint("!")
+                        midpointProjected = midPoint.projectAs(WGS_1984_MajAux)
+                        fileName = "{0}.{1}".format(str(row[getFIndex(fNames, uniqueNameField)]), "jpeg")
+                        fileOutPath = os.path.join(outDir, fileName)
+                        # Lat is y, Long is x- Passed to street vew image
+                        fetch_streetview_image_and_save(
+                                (midpointProjected.centroid.Y, midpointProjected.centroid.X), headingParam, fileOutPath)
+                        counter += 1
+                        row[getFIndex(fNames,featurePathField)]=fileName
+                        cursor.updateRow(row)
+                        print("Completed save of image and updated row.")
+                    except Exception as e:
+                        arcPrint("Iteration {0} had a handling error and was skipped.".format((str(counter))))
+                        print(e.args[0])
         else:
             with arcpy.da.UpdateCursor(inFC, fNames, spatial_reference=WGS_1984_MajAux) as cursor:
+                arcPrint("Feature class is either point or polygon, using label point to get location only.", True)
                 for row in cursor:
-                    midLabelPoint=row[getFIndex(fNames,"SHAPE@")].labelPoint
-                    midLabelPointProjected=midLabelPoint.projectAs(WGS_1984_MajAux)
-                    headingParam= row[getFIndex(fNames,heading)] if heading in fNames  else None
-                    if headingParam:
-                        fetch_streetview_image_and_save((midLabelPointProjected.centroid.Y,midLabelPointProjected.centroid.X),headingParam)
-                    else:
-                        fetch_streetview_image_and_save((midLabelPointProjected.centroid.Y,midLabelPointProjected.centroid.X))
+                    try:
+                        midLabelPoint = row[getFIndex(fNames, "SHAPE@")].labelPoint
+                        midLabelPointProjected = midLabelPoint.projectAs(WGS_1984_MajAux)
+                        headingParam = row[getFIndex(fNames, headingField)] if getFIndex(fNames,headingField) else None
+                        fileName = "{0}.{1}".format(str(row[getFIndex(fNames, uniqueNameField)]), "jpeg")
+                        fileOutPath = os.path.join(outDir, fileName)
+                        if headingParam:
+                            fetch_streetview_image_and_save(
+                                    (midLabelPointProjected.centroid.Y, midLabelPointProjected.centroid.X), headingParam,
+                                    fileOutPath)
+                        else:
+                            fetch_streetview_image_and_save(
+                                    (midLabelPointProjected.centroid.Y, midLabelPointProjected.centroid.X),
+                                    path=fileOutPath)
+                        counter += 1
+                        row[getFIndex(fNames,featurePathField)]=fileName
+                        cursor.updateRow(row)
+                        print("Completed save of image and updated row.")
+                    except Exception as e:
+                        arcPrint("Iteration {0} had a handling error and was skipped.".format((str(counter))))
+                        print(e.args[0])
+        arcPrint("Image collection cycle completed. QAQC resulting Images.",True)
+
+        if attachmentBool:
+            arcPrint("Attempting to attach images to feature class with Add Attachment's tool.",True)
+            arcpy.EnableAttachments_management(inFC)
+            arcpy.AddAttachments_management(inFC,in_match_path_field=featurePathField,in_working_folder=outDir)
+            arcPrint("Images in directory were attached to the feature class.")
+
 
         arcPrint("Cleaning up intermediates.", True)
         del spatialRef, desc, cursor, WGS_1984_MajAux
